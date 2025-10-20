@@ -45,6 +45,35 @@ function WorkoutTracker() {
   }, [workouts]); // Run whenever workouts array changes
 
   // --------------------------------------------------------------------------
+  // ROUND FUNCTIONS
+  // --------------------------------------------------------------------------
+
+  // Add a round break after the last exercise in a workout
+  const addRound = (workoutId) => {
+    setWorkouts(workouts.map(w => {
+      if (w.id !== workoutId || w.exercises.length === 0) return w;
+      
+      const lastExerciseId = w.exercises[w.exercises.length - 1].id;
+      // Avoid adding duplicate round breaks
+      if (w.roundBreaks && w.roundBreaks.includes(lastExerciseId)) return w;
+
+      return {
+        ...w,
+        roundBreaks: [...(w.roundBreaks || []), lastExerciseId]
+      };
+    }));
+  };
+
+  // Delete a round break
+  const deleteRound = (workoutId, exerciseId) => {
+    setWorkouts(workouts.map(w => 
+      w.id === workoutId
+        ? { ...w, roundBreaks: w.roundBreaks.filter(id => id !== exerciseId) }
+        : w
+    ));
+  };
+
+  // --------------------------------------------------------------------------
   // WORKOUT FUNCTIONS
   // --------------------------------------------------------------------------
 
@@ -54,7 +83,8 @@ function WorkoutTracker() {
       id: Date.now().toString(), // Use timestamp as unique ID
       date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
       notes: '',
-      exercises: []
+      exercises: [],
+      roundBreaks: [] // Add round breaks array
     };
     // Add to beginning of array (most recent first)
     setWorkouts([newWorkout, ...workouts]);
@@ -86,6 +116,7 @@ function WorkoutTracker() {
       id: Date.now().toString(),
       category: 'Upper Push', // Default category
       type: 'Push-ups',       // Default type
+      sets: 1,                // Default sets
       reps: 5,                // Default reps
       weight: '',             // Empty weight
       notes: ''               // Empty notes
@@ -162,11 +193,15 @@ function WorkoutTracker() {
 
   // Delete an exercise from a workout
   const deleteExercise = (workoutId, exerciseId) => {
-    setWorkouts(workouts.map(w =>
-      w.id === workoutId
-        ? { ...w, exercises: w.exercises.filter(e => e.id !== exerciseId) }
-        : w
-    ));
+    setWorkouts(workouts.map(w => {
+      if (w.id !== workoutId) return w;
+
+      // Also remove any round break associated with the deleted exercise
+      const newRoundBreaks = w.roundBreaks ? w.roundBreaks.filter(id => id !== exerciseId) : [];
+      const newExercises = w.exercises.filter(e => e.id !== exerciseId);
+
+      return { ...w, exercises: newExercises, roundBreaks: newRoundBreaks };
+    }));
   };
 
   // --------------------------------------------------------------------------
@@ -201,6 +236,8 @@ function WorkoutTracker() {
               onUpdateExercise={updateExercise}
               onCopyExercise={copyExercise}
               onDeleteExercise={deleteExercise}
+              onAddRound={addRound}
+              onDeleteRound={deleteRound}
             />
           ))}
         </div>
@@ -240,7 +277,9 @@ function WorkoutCard({
   onAddExercise,
   onUpdateExercise,
   onCopyExercise,
-  onDeleteExercise
+  onDeleteExercise,
+  onAddRound,
+  onDeleteRound
 }) {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
@@ -310,28 +349,68 @@ function WorkoutCard({
 
       {/* List of Exercises */}
       <div className="space-y-3">
-        {workout.exercises.map(exercise => (
-          <ExerciseCard
-            key={exercise.id}
-            exercise={exercise}
-            workoutId={workout.id}
-            isEditing={isEditing}
-            onUpdate={onUpdateExercise}
-            onCopy={onCopyExercise}
-            onDelete={onDeleteExercise}
-          />
-        ))}
+        {(() => {
+          const exerciseElements = [];
+          let roundCounter = 1;
+
+          (workout.exercises || []).forEach((exercise, index) => {
+            exerciseElements.push(
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                workoutId={workout.id}
+                isEditing={isEditing}
+                onUpdate={onUpdateExercise}
+                onCopy={onCopyExercise}
+                onDelete={onDeleteExercise}
+              />
+            );
+
+            // Check if a round break should be rendered after this exercise
+            if (workout.roundBreaks && workout.roundBreaks.includes(exercise.id)) {
+              roundCounter++;
+              exerciseElements.push(
+                <div key={`round-${exercise.id}`} className="flex items-center gap-3 py-2">
+                  <hr className="flex-grow border-t border-slate-200" />
+                  <div className="text-sm font-medium text-slate-500">
+                    Round {roundCounter}
+                  </div>
+                  {isEditing && (
+                    <button
+                      onClick={() => onDeleteRound(workout.id, exercise.id)}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded transition"
+                    >
+                      <span aria-hidden style={{fontSize: 14}}>🗑️</span>
+                    </button>
+                  )}
+                  <hr className="flex-grow border-t border-slate-200" />
+                </div>
+              );
+            }
+          });
+          return exerciseElements;
+        })()}
       </div>
 
-      {/* Add Exercise Button (only shown in edit mode) */}
+      {/* Add Exercise and Add Round Buttons (only shown in edit mode) */}
       {isEditing && (
-        <button
-          onClick={() => onAddExercise(workout.id)}
-          className="w-full mt-4 bg-slate-100 text-slate-700 py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-slate-200 transition"
-        >
-          <span aria-hidden style={{fontSize: 14}}>➕</span>
-          Add Exercise
-        </button>
+        <div className="mt-4 space-y-2">
+          <button
+            onClick={() => onAddExercise(workout.id)}
+            className="w-full bg-slate-100 text-slate-700 py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-slate-200 transition"
+          >
+            <span aria-hidden style={{fontSize: 14}}>➕</span>
+            Add Exercise
+          </button>
+          <button
+            onClick={() => onAddRound(workout.id)}
+            disabled={workout.exercises.length === 0 || (workout.roundBreaks && workout.roundBreaks.includes(workout.exercises[workout.exercises.length - 1].id))}
+            className="w-full bg-slate-100 text-slate-700 py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-slate-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span aria-hidden style={{fontSize: 14}}>📑</span>
+            Add Round
+          </button>
+        </div>
       )}
     </div>
   );
@@ -347,6 +426,9 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
   const isCore = exercise.category === 'Core';
   const isPlank = PLANK_EXERCISES.includes(exercise.type);
   
+  // Backwards compatibility for exercises created before sets were added
+  const safeExercise = { sets: 1, ...exercise };
+
   // --------------------------------------------------------------------------
   // READ-ONLY VIEW
   // --------------------------------------------------------------------------
@@ -357,25 +439,25 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
         <div className="flex justify-between items-start">
           <div className="flex-1">
             {/* Exercise Type */}
-            <div className="font-medium text-slate-800">{exercise.type}</div>
+            <div className="font-medium text-slate-800">{safeExercise.type}</div>
             
             {/* Exercise Details */}
             <div className="text-sm text-slate-600 mt-1">
-              {exercise.category}
+              {safeExercise.category}
               {isPlank ? (
                 // Show time for planks
-                exercise.time && ` • ${exercise.time} sec`
+                safeExercise.time && ` • ${safeExercise.time} sec`
               ) : (
-                // Show reps for other exercises
-                ` • ${exercise.reps} reps`
+                // Show sets and reps for other exercises
+                ` • ${safeExercise.sets} × ${safeExercise.reps} reps`
               )}
               {/* Show weight for non-core exercises */}
-              {!isCore && exercise.weight && ` • ${exercise.weight} lbs`}
+              {!isCore && safeExercise.weight && ` • ${safeExercise.weight} lbs`}
             </div>
             
             {/* Exercise Notes */}
-            {exercise.notes && (
-              <div className="text-sm text-slate-500 mt-1 italic">{exercise.notes}</div>
+            {safeExercise.notes && (
+              <div className="text-sm text-slate-500 mt-1 italic">{safeExercise.notes}</div>
             )}
           </div>
         </div>
@@ -396,8 +478,8 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Category</label>
             <select
-              value={exercise.category}
-              onChange={(e) => onUpdate(workoutId, exercise.id, 'category', e.target.value)}
+              value={safeExercise.category}
+              onChange={(e) => onUpdate(workoutId, safeExercise.id, 'category', e.target.value)}
               className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
             >
               {Object.keys(CATEGORIES).map(cat => (
@@ -409,22 +491,36 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Type</label>
             <select
-              value={exercise.type}
-              onChange={(e) => onUpdate(workoutId, exercise.id, 'type', e.target.value)}
+              value={safeExercise.type}
+              onChange={(e) => onUpdate(workoutId, safeExercise.id, 'type', e.target.value)}
               className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
             >
-              {CATEGORIES[exercise.category].map(type => (
+              {CATEGORIES[safeExercise.category].map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Reps/Time and Weight Fields */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Sets, Reps/Time and Weight Fields */}
+        <div className="grid grid-cols-3 gap-3">
           
+          {/* Sets (dropdown) */}
+          {!isPlank && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Sets</label>
+              <select
+                value={safeExercise.sets}
+                onChange={(e) => onUpdate(workoutId, safeExercise.id, 'sets', parseInt(e.target.value))}
+                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+              >
+                {[1, 2, 3].map(s => (<option key={s} value={s}>{s}</option>))}
+              </select>
+            </div>
+          )}
+
           {/* Reps (dropdown) or Time (text input) */}
-          <div>
+          <div className={isPlank ? "col-span-3" : ""}>
             <label className="block text-xs font-medium text-slate-700 mb-1">
               {isPlank ? 'Time (sec)' : 'Reps'}
             </label>
@@ -432,16 +528,16 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
               // Time input for planks
               <input
                 type="number"
-                value={exercise.time || ''}
-                onChange={(e) => onUpdate(workoutId, exercise.id, 'time', e.target.value)}
+                value={safeExercise.time || ''}
+                onChange={(e) => onUpdate(workoutId, safeExercise.id, 'time', e.target.value)}
                 placeholder="0"
                 className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
               />
             ) : (
               // Reps dropdown for other exercises
               <select
-                value={exercise.reps}
-                onChange={(e) => onUpdate(workoutId, exercise.id, 'reps', parseInt(e.target.value))}
+                value={safeExercise.reps}
+                onChange={(e) => onUpdate(workoutId, safeExercise.id, 'reps', parseInt(e.target.value))}
                 className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
               >
                 {[...Array(10)].map((_, i) => (
@@ -457,8 +553,8 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
               <label className="block text-xs font-medium text-slate-700 mb-1">Weight (lbs)</label>
               <input
                 type="number"
-                value={exercise.weight}
-                onChange={(e) => onUpdate(workoutId, exercise.id, 'weight', e.target.value)}
+                value={safeExercise.weight}
+                onChange={(e) => onUpdate(workoutId, safeExercise.id, 'weight', e.target.value)}
                 placeholder="0"
                 className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
               />
@@ -470,8 +566,8 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Notes (optional)</label>
           <textarea
-            value={exercise.notes}
-            onChange={(e) => onUpdate(workoutId, exercise.id, 'notes', e.target.value)}
+            value={safeExercise.notes}
+            onChange={(e) => onUpdate(workoutId, safeExercise.id, 'notes', e.target.value)}
             placeholder="Exercise notes..."
             className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm resize-none"
             rows="2"
@@ -481,14 +577,14 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
         {/* Copy and Delete Buttons */}
         <div className="flex gap-2">
           <button
-            onClick={() => onCopy(workoutId, exercise)}
+            onClick={() => onCopy(workoutId, safeExercise)}
             className="flex-1 bg-white border border-slate-300 text-slate-700 py-1.5 px-3 rounded text-sm font-medium flex items-center justify-center gap-2 hover:bg-slate-50 transition"
           >
             <span aria-hidden style={{fontSize: 12}}>📄</span>
             Copy
           </button>
           <button
-            onClick={() => onDelete(workoutId, exercise.id)}
+            onClick={() => onDelete(workoutId, safeExercise.id)}
             className="flex-1 bg-white border border-red-300 text-red-600 py-1.5 px-3 rounded text-sm font-medium flex items-center justify-center gap-2 hover:bg-red-50 transition"
           >
             <span aria-hidden style={{fontSize: 12}}>🗑️</span>
