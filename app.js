@@ -11,8 +11,8 @@ const { useState, useEffect } = React;
 // Define all exercise categories and their types
 const CATEGORIES = {
   'Upper Push': ['Push-ups', 'Overhead press'],
-  'Upper Pull': ['Seated rows', 'Bent-over rows', 'Lat pull-downs'],
-  'Lower Push': ['Goblet squat', 'Split squat', 'Step-ups'],
+  'Upper Pull': ['Bent-over rows', 'Overhead hang', 'Standing rows', 'Lat pull-downs'],
+  'Lower Push': ['Split squat', 'Goblet squat', 'Step-ups'],
   'Lower Pull': ['Deadlifts', 'Single-leg deadlift'],
   'Core': ['Plank', 'Side plank', 'Bicycle crunches', 'Bird-dog']
 };
