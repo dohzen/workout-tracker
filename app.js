@@ -31,6 +31,12 @@ function WorkoutTracker() {
   // State: tracks which workout is currently being edited (null = none)
   const [editingWorkoutId, setEditingWorkoutId] = useState(null);
 
+  // State for import/export modal
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importedData, setImportedData] = useState(null);
+  const fileInputRef = React.useRef(null);
+
+
   // Load workouts from browser storage when app first loads
   useEffect(() => {
     const stored = localStorage.getItem('workouts');
@@ -43,6 +49,70 @@ function WorkoutTracker() {
   useEffect(() => {
     localStorage.setItem('workouts', JSON.stringify(workouts));
   }, [workouts]); // Run whenever workouts array changes
+
+  // --------------------------------------------------------------------------
+  // IMPORT / EXPORT FUNCTIONS
+  // --------------------------------------------------------------------------
+
+  const handleExport = () => {
+    if (workouts.length === 0) {
+      alert("No workout data to export.");
+      return;
+    }
+
+    const dataStr = JSON.stringify(workouts, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    link.download = `workout_data_${date}.json`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!Array.isArray(data)) {
+          throw new Error("Data is not a valid workout array.");
+        }
+        setImportedData(data);
+        setIsImportModalOpen(true);
+      } catch (error) {
+        alert("Invalid file format. Please select a valid JSON file exported from this app.");
+      } finally {
+        // Reset file input to allow selecting the same file again
+        event.target.value = null;
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleOverwrite = () => {
+    setWorkouts(importedData);
+    setIsImportModalOpen(false);
+    setImportedData(null);
+  };
+
+  const handleAdd = () => {
+    setWorkouts(prevWorkouts => [...prevWorkouts, ...importedData]);
+    setIsImportModalOpen(false);
+    setImportedData(null);
+  };
+
 
   // --------------------------------------------------------------------------
   // ROUND FUNCTIONS
@@ -209,11 +279,37 @@ function WorkoutTracker() {
   // --------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      <div className="max-w-2xl mx-auto p-4">
-        <h1 className="text-3xl font-bold text-slate-800 mb-6">Workout Tracker</h1>
+    <div className="bg-slate-50 min-h-screen font-sans text-slate-800">
+      <div className="container mx-auto p-4 max-w-2xl">
         
-        {/* Add Workout Button */}
+        <header className="mb-4">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Workout Tracker</h1>
+          <div className="flex justify-between items-center">
+            <p className="text-slate-600">Track your progress and reach your goals.</p>
+            <div className="flex gap-2">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileSelect} 
+                accept=".json"
+                style={{ display: 'none' }} 
+              />
+              <button 
+                onClick={handleImportClick}
+                className="text-sm bg-white border border-slate-300 text-slate-700 py-1 px-3 rounded-md font-medium hover:bg-slate-50 transition"
+              >
+                Import
+              </button>
+              <button 
+                onClick={handleExport}
+                className="text-sm bg-white border border-slate-300 text-slate-700 py-1 px-3 rounded-md font-medium hover:bg-slate-50 transition"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </header>
+
         <button
           onClick={addWorkout}
           className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 mb-6 hover:bg-blue-700 transition"
@@ -242,13 +338,39 @@ function WorkoutTracker() {
           ))}
         </div>
 
-        {/* Empty State */}
-        {workouts.length === 0 && (
-          <div className="text-center text-slate-500 mt-12">
-            <p>No workouts yet. Add your first workout to get started!</p>
-          </div>
-        )}
       </div>
+      
+      {/* Import Confirmation Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold mb-4">Import Data</h2>
+            <p className="text-slate-600 mb-6">
+              A valid workout file was selected. Do you want to overwrite existing data or add the new data to it?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="bg-slate-100 text-slate-700 py-2 px-4 rounded-lg font-medium hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                className="bg-blue-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-600 transition"
+              >
+                Add
+              </button>
+              <button
+                onClick={handleOverwrite}
+                className="bg-red-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-600 transition"
+              >
+                Overwrite
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
