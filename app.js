@@ -8,17 +8,21 @@ const { useState, useEffect } = React;
 // CONFIGURATION - Edit these to customize your workout options
 // ============================================================================
 
+const DEFAULT_REPS = 8;
+const DEFAULT_SETS = 1;
+const MAX_REPS = 15;
+
 // Define all exercise categories and their types
 const CATEGORIES = {
-  'Upper Push': ['Push-ups', 'Overhead press'],
-  'Upper Pull': ['Bent-over rows', 'Overhead hang', 'Standing rows', 'Lat pull-downs'],
+  'Upper Push': ['Push-ups', 'Overhead press (dumbbells)', 'Overhead press (barbell)'],
+  'Upper Pull': ['Bent-over rows', 'Overhead hang', 'Standing rows'],
   'Lower Push': ['Split squat', 'Goblet squat', 'Step-ups'],
-  'Lower Pull': ['Deadlifts', 'Single-leg deadlift'],
-  'Core': ['Plank', 'Side plank', 'Bicycle crunches', 'Bird-dog']
+  'Lower Pull': ['Deadlifts', 'Single-leg deadlift', 'Kettlebell swings'],
+  'Core': ['Plank', 'Side plank', 'Plank cycle']
 };
 
-// Plank exercises use time instead of reps
-const PLANK_EXERCISES = ['Plank', 'Side plank'];
+// Some exercises use time instead of reps
+const TIME_EXERCISES = ['Plank', 'Side plank', 'Plank cycle', 'Overhead hang'];
 
 // ============================================================================
 // MAIN APP COMPONENT
@@ -186,8 +190,8 @@ function WorkoutTracker() {
       id: Date.now().toString(),
       category: 'Upper Push', // Default category
       type: 'Push-ups',       // Default type
-      sets: 1,                // Default sets
-      reps: 5,                // Default reps
+      sets: DEFAULT_SETS,                // Default sets
+      reps: DEFAULT_REPS,                // Default reps
       weight: '',             // Empty weight
       notes: ''               // Empty notes
     };
@@ -214,12 +218,12 @@ function WorkoutTracker() {
             const newType = CATEGORIES[value][0]; // Get first type in new category
             const updates = { category: value, type: newType };
             
-            // Convert between reps and time when switching to/from planks
-            if (PLANK_EXERCISES.includes(newType) && e.reps !== undefined) {
+            // Convert between reps and time when needed
+            if (TIME_EXERCISES.includes(newType) && e.reps !== undefined) {
               updates.time = '';
               delete updates.reps;
-            } else if (!PLANK_EXERCISES.includes(newType) && e.time !== undefined) {
-              updates.reps = 5;
+            } else if (!TIME_EXERCISES.includes(newType) && e.time !== undefined) {
+              updates.reps = DEFAULT_REPS;
               delete updates.time;
             }
             return { ...e, ...updates };
@@ -229,12 +233,12 @@ function WorkoutTracker() {
           if (field === 'type') {
             const updates = { type: value };
             
-            // Convert between reps and time when switching to/from planks
-            if (PLANK_EXERCISES.includes(value) && e.reps !== undefined) {
+            // Convert between reps and time when needed
+            if (TIME_EXERCISES.includes(value) && e.reps !== undefined) {
               updates.time = '';
               delete updates.reps;
-            } else if (!PLANK_EXERCISES.includes(value) && e.time !== undefined) {
-              updates.reps = 5;
+            } else if (!TIME_EXERCISES.includes(value) && e.time !== undefined) {
+              updates.reps = DEFAULT_REPS;
               delete updates.time;
             }
             return { ...e, ...updates };
@@ -544,9 +548,9 @@ function WorkoutCard({
 // ============================================================================
 
 function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDelete }) {
-  // Check if this is a core exercise or a plank
+  // Check if this is a core exercise or a time-based exercise
   const isCore = exercise.category === 'Core';
-  const isPlank = PLANK_EXERCISES.includes(exercise.type);
+  const isTime = TIME_EXERCISES.includes(exercise.type);
   
   // Backwards compatibility for exercises created before sets were added
   const safeExercise = { sets: 1, ...exercise };
@@ -566,8 +570,8 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
             {/* Exercise Details */}
             <div className="text-sm text-slate-600 mt-1">
               {safeExercise.category}
-              {isPlank ? (
-                // Show time for planks
+              {isTime ? (
+                // Show time for relevant exercises instead of sets/reps
                 safeExercise.time && ` • ${safeExercise.time} sec`
               ) : (
                 // Show sets and reps for other exercises
@@ -628,7 +632,7 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
         <div className="grid grid-cols-3 gap-3">
           
           {/* Sets (dropdown) */}
-          {!isPlank && (
+          {!isTime && (
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Sets</label>
               <select
@@ -642,12 +646,11 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
           )}
 
           {/* Reps (dropdown) or Time (text input) */}
-          <div className={isPlank ? "col-span-3" : ""}>
+          <div className={isTime ? "col-span-3" : ""}>
             <label className="block text-xs font-medium text-slate-700 mb-1">
-              {isPlank ? 'Time (sec)' : 'Reps'}
+              {isTime ? 'Time (sec)' : 'Reps'}
             </label>
-            {isPlank ? (
-              // Time input for planks
+            {isTime ? (
               <input
                 type="number"
                 value={safeExercise.time || ''}
@@ -662,7 +665,7 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
                 onChange={(e) => onUpdate(workoutId, safeExercise.id, 'reps', parseInt(e.target.value))}
                 className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
               >
-                {[...Array(10)].map((_, i) => (
+                {[...Array(MAX_REPS)].map((_, i) => (
                   <option key={i + 1} value={i + 1}>{i + 1}</option>
                 ))}
               </select>
