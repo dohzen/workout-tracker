@@ -14,15 +14,40 @@ const MAX_REPS = 15;
 
 // Define all exercise categories and their types
 const CATEGORIES = {
-  'Upper Push': ['Push-ups', 'Overhead press (dumbbells)', 'Overhead press (barbell)'],
-  'Upper Pull': ['Bent-over rows', 'Overhead hang', 'Standing rows'],
-  'Lower Push': ['Split squat', 'Goblet squat', 'Step-ups'],
+  'Upper Push': ['Push-ups', 'Overhead press (dumbbells)', 'Overhead press (barbell)', 'Chest press (inclined, dumbbells)'],
+  'Upper Pull': ['Bent-over rows', 'Standing rows (dumbbells)', 'Standing rows (cable)','Seated rows (cable)','Overhead hang'],
+  'Lower Push': ['Split squat', 'Goblet squat'],
   'Lower Pull': ['Deadlifts', 'Single-leg deadlift', 'Kettlebell swings'],
   'Core': ['Plank', 'Side plank', 'Plank cycle']
 };
 
 // Some exercises use time instead of reps
 const TIME_EXERCISES = ['Plank', 'Side plank', 'Plank cycle', 'Overhead hang'];
+
+// ============================================================================
+// TIME HELPER FUNCTIONS
+// ============================================================================
+
+// Convert 24-hour time (HH:MM) to 12-hour format with AM/PM
+function formatTimeTo12Hour(time24) {
+  if (!time24) return '';
+  const [hours, minutes] = time24.split(':');
+  const date = new Date();
+  date.setHours(parseInt(hours), parseInt(minutes));
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
+// Get current time in 24-hour format (HH:MM)
+function getCurrentTime() {
+  const now = new Date();
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
 
 // ============================================================================
 // MAIN APP COMPONENT
@@ -156,6 +181,8 @@ function WorkoutTracker() {
     const newWorkout = {
       id: Date.now().toString(), // Use timestamp as unique ID
       date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
+      time: getCurrentTime(), // Auto-populate with current time
+      location: 'QA Community Center', // Default location
       notes: '',
       exercises: [],
       roundBreaks: [] // Add round breaks array
@@ -193,11 +220,12 @@ function WorkoutTracker() {
       sets: DEFAULT_SETS,                // Default sets
       reps: DEFAULT_REPS,                // Default reps
       weight: '',             // Empty weight
-      notes: ''               // Empty notes
+      notes: '',              // Empty notes
+      unilateral: false       // Default to false
     };
-    
+
     setWorkouts(workouts.map(w =>
-      w.id === workoutId 
+      w.id === workoutId
         ? { ...w, exercises: [...w.exercises, newExercise] }
         : w
     ));
@@ -424,15 +452,61 @@ function WorkoutCard({
             />
           ) : (
             <h2 className="text-lg font-semibold text-slate-800 mb-2">
-              {new Date(workout.date + 'T00:00:00').toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
+              {new Date(workout.date + 'T00:00:00').toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
               })}
             </h2>
           )}
-          
+
+          {/* Time and Location Fields */}
+          <div className="flex gap-3 mb-2">
+            {/* Time Field */}
+            <div className="flex-1">
+              {isEditing ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={workout.time || ''}
+                    onChange={(e) => onUpdate(workout.id, 'time', e.target.value)}
+                    className="w-full border border-slate-300 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+              ) : (
+                workout.time && (
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium">Time:</span> {formatTimeTo12Hour(workout.time)}
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Location Field */}
+            <div className="flex-1">
+              {isEditing ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={workout.location || ''}
+                    onChange={(e) => onUpdate(workout.id, 'location', e.target.value)}
+                    placeholder="QA Community Center"
+                    className="w-full border border-slate-300 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+              ) : (
+                workout.location && (
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium">Location:</span> {workout.location}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
           {/* Notes Field */}
           {isEditing ? (
             <textarea
@@ -551,9 +625,9 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
   // Check if this is a core exercise or a time-based exercise
   const isCore = exercise.category === 'Core';
   const isTime = TIME_EXERCISES.includes(exercise.type);
-  
-  // Backwards compatibility for exercises created before sets were added
-  const safeExercise = { sets: 1, ...exercise };
+
+  // Backwards compatibility for exercises created before sets and unilateral were added
+  const safeExercise = { sets: 1, unilateral: false, ...exercise };
 
   // --------------------------------------------------------------------------
   // READ-ONLY VIEW
@@ -579,6 +653,12 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
               )}
               {/* Show weight for non-core exercises */}
               {!isCore && safeExercise.weight && ` • ${safeExercise.weight} lbs`}
+              {/* Show unilateral indicator */}
+              {safeExercise.unilateral && (
+                <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                  Unilateral
+                </span>
+              )}
             </div>
             
             {/* Exercise Notes */}
@@ -697,6 +777,23 @@ function ExerciseCard({ exercise, workoutId, isEditing, onUpdate, onCopy, onDele
             className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm resize-none"
             rows="2"
           />
+        </div>
+
+        {/* Unilateral Checkbox */}
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id={`unilateral-${safeExercise.id}`}
+            checked={safeExercise.unilateral || false}
+            onChange={(e) => onUpdate(workoutId, safeExercise.id, 'unilateral', e.target.checked)}
+            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+          />
+          <label
+            htmlFor={`unilateral-${safeExercise.id}`}
+            className="ml-2 text-sm font-medium text-slate-700"
+          >
+            Unilateral (one side at a time)
+          </label>
         </div>
 
         {/* Copy and Delete Buttons */}
