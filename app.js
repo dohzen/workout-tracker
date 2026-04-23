@@ -14,10 +14,10 @@ const MAX_REPS = 15;
 
 // Define all exercise categories and their types
 const CATEGORIES = {
-  'Upper Push': ['Push-ups', 'Overhead press (dumbbells)', 'Overhead press (barbell)', 'Chest press (inclined, dumbbells)'],
+  'Upper Push': ['Push-ups', 'Overhead press (dumbbells)', 'Overhead press (barbell)', 'Chest press (inclined, dumbbells)', 'Chest press (cable)'],
   'Upper Pull': ['Bent-over rows', 'Standing rows (dumbbells)', 'Standing rows (cable)','Seated rows (cable)','Overhead hang'],
   'Lower Push': ['Split squat', 'Goblet squat'],
-  'Lower Pull': ['Deadlifts', 'Single-leg deadlift', 'Kettlebell swings'],
+  'Lower Pull': ['Deadlifts (RDL)','Deadlifts (conventional)', 'Single-leg deadlift', 'Kettlebell swings'],
   'Core': ['Plank', 'Side plank', 'Plank cycle']
 };
 
